@@ -18,7 +18,7 @@
 3.          #lxb
 .5         #lzb
 6.         #xb
-0.          #zb
+0.25          #zb
 0.          #Ub
 0.          #Wb
 0.          #phi_b
