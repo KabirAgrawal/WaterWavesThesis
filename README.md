@@ -9,9 +9,11 @@ Spacetime plots for surface height for homogeneous fluids only (Parameters/unif*
 - kelvin_wake_thesis.py
 Python code to conduct simulations for associated parameters. Format for usage:
 
+```pbs
 conda activate dedalus
 python3 kelvin_wake_thesis.py parameter_file.txt ./
 conda deactivate
+```
 
 arg1 = python file for simulation run
 arg2 = parameter file name
