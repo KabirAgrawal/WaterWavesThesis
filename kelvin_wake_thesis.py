@@ -134,6 +134,7 @@ def dead_water(path, sim_name, iteration_num, fluid_params, boat_params, sim_par
     resx, resz, wall_time, dt, steps, sim_name, calc_freq, print_freq, save_freq, save_num = tuple(sim_params)
     boundary, offset, delta_boundary = tuple(boundary_params)
     
+    # Reduced gravity
     drho = rho2 - rho1
     dB = 2 * drho * g / (rho2 + rho1)
     
@@ -144,11 +145,15 @@ def dead_water(path, sim_name, iteration_num, fluid_params, boat_params, sim_par
     domain = de.Domain([xbasis, zbasis], grid_dtype=np.float64)    
     x, z = domain.grids(scales=domain.dealias)
 
-    
+    # Set up new fields within the domain along with the required scales. Since the data is mutable, set keep_data = False
     X, Z, Rx, Rz, U, W, K = domain.new_field(), domain.new_field(), domain.new_field(), domain.new_field(), domain.new_field(), domain.new_field(), domain.new_field()    
     for field in [X, Z, Rx, Rz, U, W, K]:
         field.set_scales(domain.dealias, keep_data=False)
     
+    # X,Z position, Rx, Rz are positions with respect to the defined domain
+    # Define the boat K
+    # Velocity of the boat with respect to the domain
+    # Volume of the boat (area of the ellipse inside the domain)
     X['g'] = xb
     Z['g'] = zb    
     Rx['g'] = np.mod(x - xb + Lx / 2, Lx) - Lx / 2 # Boat repeats horizontally. 
@@ -246,19 +251,25 @@ def dead_water(path, sim_name, iteration_num, fluid_params, boat_params, sim_par
     
     
     # Boundary Conditions
-    # What are the correct boundary conditions?
     problem.add_bc("left(u) = U_in") 
     problem.add_bc("left(w) = 0") 
     problem.add_bc("left(bz) = 0")
     problem.add_bc("right(q) = 0")    
-    problem.add_bc("right(dt(p) - g * w) = 0")    
     problem.add_bc("right(bz) = 0")
+	
+    # Linearised kinematic boundary condition
+    problem.add_bc("right(dt(p) - g * w) = 0")
+    # Linearised about u0 = U_in
+    # problem.add_bc("right(dt(p - U_in**2 - 2 * U_in * u) - g * w) = 0")
+
+
+    
 
     # Build solver
     solver = problem.build_solver(de.timesteppers.RK222)
     logger.info('Solver built')
 
-
+    # Pick up the last registered file in the form of {exp}-iter-{iteration} and save as loadfile. If iteration = 0, then it's the first simulation on record.
     try:	
         if iteration_num == 0:
             raise Exception()
@@ -274,9 +285,8 @@ def dead_water(path, sim_name, iteration_num, fluid_params, boat_params, sim_par
     
     # ONLY IF RESTART CHECK NUM FILES IN DIRECTORY ONLY ACCESS THE LAST ONES
     if loadfile != None:
+	# load_state takes care of everything in the _else_ statement.
         write, dt = solver.load_state(loadfile, -1)
-        # Load the variables into their states
-        # u, w, p, q, b, bz = solver.state['u'], solver.state['w'], solver.state['p'], solver.state['q'], solver.state['b'], solver.state['bz']
     else:            
         # Initial conditions
         u, w, p, q, b, bz = solver.state['u'], solver.state['w'], solver.state['p'], solver.state['q'], solver.state['b'], solver.state['bz']
@@ -289,6 +299,7 @@ def dead_water(path, sim_name, iteration_num, fluid_params, boat_params, sim_par
     solver.stop_sim_time = np.inf
     solver.stop_wall_time = wall_time
     solver.stop_iteration = steps
+
     # Saving state variable data
     snapshots = solver.evaluator.add_file_handler('{}/data_{}'.format(path, sim_name), iter = save_freq[0], max_writes = save_num[0])
     for task in ['p','u','w','q', 'b', 'bz', 'K', 'enstrophy']:
@@ -321,9 +332,6 @@ def dead_water(path, sim_name, iteration_num, fluid_params, boat_params, sim_par
     force.add_property("K*(u-U)", name='fx', precompute_integral=True)
     force.add_property("K*(w-W)", name='fz', precompute_integral=True)
     
-    
-
-
     # Main loop
     try:
 
